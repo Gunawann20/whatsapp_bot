@@ -5,7 +5,7 @@ const qrcode = require('qrcode-terminal');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 const fs = require('fs');
-const { log, error } = require('console');
+const { log } = require('console');
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -23,11 +23,12 @@ const client = new Client({
 const userSessions = new Map();
 
 const questions = [
-    { key: 'nama', question: 'Siapa nama lengkap Anda?' },
-    { key: 'alamat', question: 'Apa alamat lengkap Anda?' },
-    { key: 'telepon', question: 'Berapa nomor telepon Anda?' },
-    { key: 'email', question: 'Apa alamat email Anda?' },
-    { key: 'umur', question: 'Berapa umur Anda?' }
+    { key: 'nama', question: 'Nama lengkap Anda:' },
+    { key: 'provinsi', question: 'Provinsi Anda:' },
+    { key: 'kabupaten', question: 'Kabupaten/Kota Anda:' },
+    { key: 'username', question: 'Username Anda:' },
+    { key: 'modul', question: `Modul (Masukan angka): \n 1. Verval KRS \n 2. Elsimil` },
+    { key: 'uraian', question: `Uraian Permasalahan \n\n *) Jika permasalahan yang sama terjadi pada username lain, mohon input username-username lain yang terdampak pada isian Uraian Permasalahan dan Upload Screenshot Bukti Permasalahan untuk setiap username yang terdampak (bisa upload banyak file gambar)` }
 ];
 
 async function initializeGoogleSheets() {
@@ -44,7 +45,7 @@ async function initializeGoogleSheets() {
     if (!sheet) {
         sheet = await doc.addSheet({ 
             title: 'Data Pengguna',
-            headerValues: ['Timestamp', 'Nama', 'Alamat', 'Email', 'Umur', 'Nomor WA']
+            headerValues: ['Nama', 'Nomor WhatsApp', 'Provinsi', 'Kabupaten/Kota', 'Username', 'Modul SIGA Mobile', 'Uraian Permasalahan','Timestamp']
         });
     }
     
@@ -56,18 +57,20 @@ async function saveToGoogleSheets(userData) {
         const sheet = await initializeGoogleSheets();
         
         await sheet.addRow({
-            'Timestamp': new Date().toLocaleString('id-ID'),
             'Nama': userData.nama || '',
-            'Alamat': userData.alamat || '',
-            'Email': userData.email || '',
-            'Umur': userData.umur || '',
-            'Nomor WA': userData.whatsappNumber || ''
+            'Nomor WhatsApp': userData.whatsappNumber || '',
+            'Provinsi': userData.provinsi || '',
+            'Kabupaten/Kota': userData.kabupaten || '',
+            'Username': userData.username || '',
+            'Modul SIGA Mobile' : userData.modul || '', 
+            'Uraian Permasalahan' : userData.uraian || '',
+            'Timestamp': new Date().toLocaleString('id-ID')
         });
         
         log('Data berhasil disimpan ke Google Sheets');
         return true;
     } catch (error) {
-        error('Error saving to Google Sheets:', error);
+        console.error('Error saving to Google Sheets:', error);
         return false;
     }
 }
@@ -85,7 +88,7 @@ async function sendMedia(message, filePath, caption) {
         return true;
 
     } catch (error) {
-        error('Error sending file:', error);
+        console.error('Error sending file:', error);
         return false;
     }
 }
@@ -101,7 +104,7 @@ client.on('ready', () => {
 });
 
 client.on('message', async (message) => {
-    const userId = message.from;
+    const userId = message.from.replace("@c.us", "");
     const userMessage = message.body.toLowerCase().trim();
     
     if (message.from.includes('@g.us')) {
@@ -109,7 +112,7 @@ client.on('message', async (message) => {
     }
     
     if (!userSessions.has(userId)) {
-        if (userMessage === 'halo' || userMessage === 'hi' || userMessage === 'hello') {
+        if (userMessage === 'help') {
             userSessions.set(userId, {
                 currentQuestionIndex: 0,
                 data: {},
@@ -117,9 +120,9 @@ client.on('message', async (message) => {
             });
             
             const firstQuestion = questions[0];
-            await message.reply(`Halo! Selamat datang. Saya akan mengajukan beberapa pertanyaan untuk mengumpulkan data Anda.\n\n${firstQuestion.question}`);
+            await message.reply(`Halo, selamat datang di Helpdesk SIGA Mobile.\nSaya di sini untuk membantu Anda.\n\n${firstQuestion.question}`);
         } else {
-            await message.reply('Halo! Ketik "halo" untuk memulai pengisian data.');
+            await message.reply('Terima Kasih telah menghubungi Helpdesk SIGA Mobile. Untuk memulai silahkan ketik "help"');
         }
         return;
     }
@@ -136,6 +139,14 @@ client.on('message', async (message) => {
         await message.reply(nextQuestion.question);
     } else {
         session.data.whatsappNumber = userId;
+        let modul = session.data.modul;
+        if (modul == 1) {
+            session.data.modul = "Verval KRS";
+        }else if(modul == 2){
+            session.data.modul = "Elsimil";
+        }else{
+            session.data.modul = modul;
+        }
 
         await message.reply('Data Anda sedang disimpan...');
         
@@ -152,7 +163,7 @@ client.on('message', async (message) => {
 });
 
 client.on('auth_failure', (msg) => {
-    error('Authentication failed:', msg);
+    console.error('Authentication failed:', msg);
 });
 
 client.on('disconnected', (reason) => {
