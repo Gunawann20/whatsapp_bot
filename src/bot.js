@@ -44,7 +44,7 @@ async function initializeGoogleSheets() {
     if (!sheet) {
         sheet = await doc.addSheet({ 
             title: 'Data Pengguna',
-            headerValues: ['Timestamp', 'Nama', 'Alamat', 'Telepon', 'Email', 'Umur', 'Nomor WA']
+            headerValues: ['Timestamp', 'Nama', 'Alamat', 'Email', 'Umur', 'Nomor WA']
         });
     }
     
@@ -59,7 +59,6 @@ async function saveToGoogleSheets(userData) {
             'Timestamp': new Date().toLocaleString('id-ID'),
             'Nama': userData.nama || '',
             'Alamat': userData.alamat || '',
-            'Telepon': userData.telepon || '',
             'Email': userData.email || '',
             'Umur': userData.umur || '',
             'Nomor WA': userData.whatsappNumber || ''
